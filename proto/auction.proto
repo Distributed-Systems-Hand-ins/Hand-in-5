@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package auction;
+
+option go_package = "auction/proto";
+
+enum Outcome {
+  UNSPECIFIED = 0; // so a missing outcome is never mistaken for success
+  SUCCESS = 1;
+  FAIL = 2;
+  EXCEPTION = 3;
+}
+
+message BidRequest {
+  string bidder = 1;
+  int32 amount = 2;
+}
+message BidResponse {
+  Outcome outcome = 1;
+}
+
+message ResultRequest {}
+message ResultResponse {
+  bool over = 1;
+  int32 highest_bid = 2;
+  string winner = 3; // empty if nobody has bid
+}
+
+// Node-to-node: the primary sends its whole state after each accepted bid.
+message ReplicateRequest {
+  int64 seq = 1;
+  int32 highest_bid = 2;
+  string highest_bidder = 3;
+  map<string, int32> bids = 4;   // bidder id -> that bidder's last bid
+  int64 deadline_unix_nano = 5;  // absolute end time of the auction
+}
+message ReplicateResponse {}
+
+message PingRequest {}
+message PingResponse {}
+
+service Auction {
+  rpc Bid(BidRequest) returns (BidResponse);
+  rpc Result(ResultRequest) returns (ResultResponse);
+  rpc Replicate(ReplicateRequest) returns (ReplicateResponse);
+  rpc Ping(PingRequest) returns (PingResponse);
+}
