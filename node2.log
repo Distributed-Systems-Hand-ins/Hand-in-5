@@ -1,0 +1,4 @@
+15:50:16.563971 Node 2 listening on localhost:5002
+15:50:42.504584 Backup: now at seq 1, highest alice:10
+15:51:12.364255 Node 1 did not answer (rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:5001: connectex: No connection could be made because the target machine actively refused it."), marking it as dead
+15:51:12.367019 Bid 20 from alice -> SUCCESS (seq 2)
