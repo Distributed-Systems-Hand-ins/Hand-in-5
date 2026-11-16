@@ -13,35 +13,44 @@ enum Outcome {
 
 message BidRequest {
   string bidder = 1;
-  int32 amount = 2;
+  int64 amount = 2;
+  int64 request_id = 3;
+  bool forwarded = 4;
 }
-message BidResponse {
+message BidReply {
   Outcome outcome = 1;
+  string message = 2;
 }
 
-message ResultRequest {}
-message ResultResponse {
+message ResultRequest {
+  bool forwarded = 1;
+}
+message ResultReply {
   bool over = 1;
   int32 highest_bid = 2;
-  string winner = 3; // empty if nobody has bid
+  string highest_bidder = 3; // empty if nobody has bid
+  bool started = 4;
+  int64 = seconds_left = 5;
 }
 
 // Node-to-node: the primary sends its whole state after each accepted bid.
-message ReplicateRequest {
+message State {
   int64 seq = 1;
   int32 highest_bid = 2;
   string highest_bidder = 3;
-  map<string, int32> bids = 4;   // bidder id -> that bidder's last bid
+  map<string, BidderInfo> bidders = 4;   // bidder id -> that bidder's last bid
   int64 deadline_unix_nano = 5;  // absolute end time of the auction
 }
-message ReplicateResponse {}
+message Ack {}
 
-message PingRequest {}
-message PingResponse {}
+message BidderInfo {
+  int64 last_request_id = 1;
+  BidReply last_reply = 2;
+}
 
 service Auction {
-  rpc Bid(BidRequest) returns (BidResponse);
-  rpc Result(ResultRequest) returns (ResultResponse);
-  rpc Replicate(ReplicateRequest) returns (ReplicateResponse);
-  rpc Ping(PingRequest) returns (PingResponse);
+  rpc Bid(BidRequest) returns (BidReply);
+  rpc Result(ResultRequest) returns (ResultReply);
+  rpc Replicate(State) returns (Ack);
 }
+

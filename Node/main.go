@@ -1,27 +1,101 @@
-
 package main
 
 import (
-	"fmt"
 	"bufio"
+	"fmt"
+	"log"
 	"math/rand"
-	"sort"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
+pb "auction/proto" // generated from proto/auction.proto (see go_package)
+"google.golang.org/grpc"
+"google.golang.org/grpc/credentials/insecure"
+"google.golang.org/protobuf/proto"
+
+var adresses = map[int]string{
+	1: "localhost:5001",
+	2: "localhost:5002",
+	3: "localhost:5003",
+}
+
+const callTimeout = 1 * time.Second
+const forwardTimeout = 3 * time.Second
+
+var auctionDuration time.Duration
+
+type Node struct {
+	pb.UnimplementedAuctionServer
+	id int
+	peers map[int]pb.AuctionClient
+
+	mu sync.Mutex
+	state pb.AuctionState
+	dead map[int]bool
+}
+
 func main() {
-	listener, err := net.Listen("tcp", ":8080")
+	id := flag.Int("id", 1, "node id (1-3)")
+	flag.DurationVar(&auctionDuration, "duration", 100*time.Second, "auction duration")
+	flag.Parse()
+
+	file, err := os.Create(fmt.Sprintf("node%d.log", *id))
 	if err != nil {
-		fmt.Print(err)
-		return
+		log.Fatal(err)
+	}
+	log.SetOutput(io.MultiWriter(os.Stdout, file))
+	log.SetFlags(log.Ltime | log.Lmicroseconds)
+
+	n := &Node {
+		id: *id,
+		peers: map[int]pb.AuctionClient{},
+		dead: map[int]bool{},
+		state: pb.State{Bidders: map[string]*pb.BidderInfo{}},
 	}
 
-	defer listener.Close()
-	// Start hosting the auction
-	go hostAuction()
+	for otherID, addr := range adresses {
+		if otherID == *id {
+			continue
+		}
+		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Fatal(err)
+		}
+		n.peers[otherID] = pb.NewAuctionClient(conn)
+	}
+
+	lis, err := net.Listen("tcp", adressess[n.id])
+	if err != nil {
+		log.Fatal(err)
+	}
+	server := grpc.NewServer()
+	pb.RegisterAuctionServer(server, n)
+	log.Printf("Node %d listening on %s", n.id, adresses[n.id])
+	log.Fatal(server.Serve(lis))
+
+	func (n * Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.BidResponse, error) {
+		return n.handleBid(req), nil
+	}
+    func (n *Node) Result(ctx context.Context, req *pb.ResultRequest) (*pb.ResultResponse, error) {
+		return n.handleResult(req), nil
+	}
+
+	func (n *Node) handleBid(req *pb.BidRequest) *pb.BidReply {
+		n.mu.Lock()
+		defer n.mu.Unlock()
+	}
+
+	newState := proto.Clone(n.state).(*pb.State)
+	reply := applyBid(newState, req, time.Now())
+	newState.Seq++
+
+	n.state = newState
+	log.Printf("Bid %d from %s -> %v (seq %d)", req.Amount, req.Bidder, reply.Outcome, newState.Seq)
+	return reply
 
 	// Continously accept incoming connections
 	for {
