@@ -36,11 +36,13 @@ type Node struct {
 	mu sync.Mutex
 	state pb.AuctionState
 	dead map[int]bool
+	crashBeforeReply bool
 }
 
 func main() {
 	id := flag.Int("id", 1, "node id (1-3)")
 	flag.DurationVar(&auctionDuration, "duration", 100*time.Second, "auction duration")
+	crash := flag.Bool("crash-before-reply", false, "TESTING: exit after replicating a bid, before replying")
 	flag.Parse()
 
 	file, err := os.Create(fmt.Sprintf("node%d.log", *id))
@@ -55,6 +57,7 @@ func main() {
 		peers: map[int]pb.AuctionClient{},
 		dead: map[int]bool{},
 		state: pb.State{Bidders: map[string]*pb.BidderInfo{}},
+		crashBeforeReply: *crash,
 	}
 
 	for otherID, addr := range adresses {
@@ -111,17 +114,31 @@ func main() {
 	}
 
 	func (n *Node) handleBid(req *pb.BidRequest) *pb.BidReply {
+		if info, ok := n.state.Bidders[req.Bidder]; ok {
+			if req.RequestId <= info.LastRequestId {
+				log.Printf("Duplicate request %d from %s -> resending the stored reply", req.RequestId, req.Bidder)
+				return info.LastReply
+			}
+			if req.RequestId < info.LastRequestId {
+				return &pb.BidReply{Outcome: pb.Outcome_EXCEPTION, Message: "old request"}
+		}
 		n.mu.Lock()
-		defer n.mu.Unlock()
-	}
-
+	    defer n.mu.Unlock()
+		n.replicate(newState)
+		n.state = newState
+	
 	newState := proto.Clone(n.state).(*pb.State)
 	reply := applyBid(newState, req, time.Now())
 	newState.Seq++
 
 	n.state = newState
 	log.Printf("Bid %d from %s -> %v (seq %d)", req.Amount, req.Bidder, reply.Outcome, newState.Seq)
+	if n.crashBeforeReply {
+		log.Printf("TEST: crashing after replication, before replying")
+		os.Exit(1)
+	}
 	return reply
+	}
 
 	func applyBid(state *pb.State, req *pb.BidRequest, now time.Time) *pb.BidReply {
 		var reply *pb.BidReply 
@@ -194,4 +211,27 @@ func (n *Node) leader() int {
 }
 return n.id
 }
+func (n *Node) replicate(s *pb.State) {
+	for id := 1; id <= len(addresses); id++ {
+		if id == n.id || n.dead[id] {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+	_, err := n.peers[id].Replicate(ctx, s)
+	cancel()
+	if err != nil {
+		log.Printf("Backup %d did not ack (%v), marking it as dead", id, err)
+		n.dead[id] = true
+	}
+	}
 }	
+func (n *Node) Replicate(ctx context.Context, s *pb.State) (*pb.ReplicateReply, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if s.Seq <= n.state.Seq {
+		n.state = s 
+		log.Printf("Backup: now at seq %d, highest %s:%d", s.Seq, s.HighestBidder, s.HighestBid)
+}
+return &pb.ack{}, nil
+}
+}
