@@ -22,17 +22,15 @@ const (
 	Auction_Bid_FullMethodName       = "/auction.Auction/Bid"
 	Auction_Result_FullMethodName    = "/auction.Auction/Result"
 	Auction_Replicate_FullMethodName = "/auction.Auction/Replicate"
-	Auction_Ping_FullMethodName      = "/auction.Auction/Ping"
 )
 
 // AuctionClient is the client API for Auction service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuctionClient interface {
-	Bid(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*BidResponse, error)
-	Result(ctx context.Context, in *ResultRequest, opts ...grpc.CallOption) (*ResultResponse, error)
-	Replicate(ctx context.Context, in *ReplicateRequest, opts ...grpc.CallOption) (*ReplicateResponse, error)
-	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
+	Bid(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*BidReply, error)
+	Result(ctx context.Context, in *ResultRequest, opts ...grpc.CallOption) (*ResultReply, error)
+	Replicate(ctx context.Context, in *State, opts ...grpc.CallOption) (*Ack, error)
 }
 
 type auctionClient struct {
@@ -43,9 +41,9 @@ func NewAuctionClient(cc grpc.ClientConnInterface) AuctionClient {
 	return &auctionClient{cc}
 }
 
-func (c *auctionClient) Bid(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*BidResponse, error) {
+func (c *auctionClient) Bid(ctx context.Context, in *BidRequest, opts ...grpc.CallOption) (*BidReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BidResponse)
+	out := new(BidReply)
 	err := c.cc.Invoke(ctx, Auction_Bid_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -53,9 +51,9 @@ func (c *auctionClient) Bid(ctx context.Context, in *BidRequest, opts ...grpc.Ca
 	return out, nil
 }
 
-func (c *auctionClient) Result(ctx context.Context, in *ResultRequest, opts ...grpc.CallOption) (*ResultResponse, error) {
+func (c *auctionClient) Result(ctx context.Context, in *ResultRequest, opts ...grpc.CallOption) (*ResultReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ResultResponse)
+	out := new(ResultReply)
 	err := c.cc.Invoke(ctx, Auction_Result_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -63,20 +61,10 @@ func (c *auctionClient) Result(ctx context.Context, in *ResultRequest, opts ...g
 	return out, nil
 }
 
-func (c *auctionClient) Replicate(ctx context.Context, in *ReplicateRequest, opts ...grpc.CallOption) (*ReplicateResponse, error) {
+func (c *auctionClient) Replicate(ctx context.Context, in *State, opts ...grpc.CallOption) (*Ack, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReplicateResponse)
+	out := new(Ack)
 	err := c.cc.Invoke(ctx, Auction_Replicate_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *auctionClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(PingResponse)
-	err := c.cc.Invoke(ctx, Auction_Ping_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -87,10 +75,9 @@ func (c *auctionClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.
 // All implementations must embed UnimplementedAuctionServer
 // for forward compatibility.
 type AuctionServer interface {
-	Bid(context.Context, *BidRequest) (*BidResponse, error)
-	Result(context.Context, *ResultRequest) (*ResultResponse, error)
-	Replicate(context.Context, *ReplicateRequest) (*ReplicateResponse, error)
-	Ping(context.Context, *PingRequest) (*PingResponse, error)
+	Bid(context.Context, *BidRequest) (*BidReply, error)
+	Result(context.Context, *ResultRequest) (*ResultReply, error)
+	Replicate(context.Context, *State) (*Ack, error)
 	mustEmbedUnimplementedAuctionServer()
 }
 
@@ -101,17 +88,14 @@ type AuctionServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAuctionServer struct{}
 
-func (UnimplementedAuctionServer) Bid(context.Context, *BidRequest) (*BidResponse, error) {
+func (UnimplementedAuctionServer) Bid(context.Context, *BidRequest) (*BidReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method Bid not implemented")
 }
-func (UnimplementedAuctionServer) Result(context.Context, *ResultRequest) (*ResultResponse, error) {
+func (UnimplementedAuctionServer) Result(context.Context, *ResultRequest) (*ResultReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method Result not implemented")
 }
-func (UnimplementedAuctionServer) Replicate(context.Context, *ReplicateRequest) (*ReplicateResponse, error) {
+func (UnimplementedAuctionServer) Replicate(context.Context, *State) (*Ack, error) {
 	return nil, status.Error(codes.Unimplemented, "method Replicate not implemented")
-}
-func (UnimplementedAuctionServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedAuctionServer) mustEmbedUnimplementedAuctionServer() {}
 func (UnimplementedAuctionServer) testEmbeddedByValue()                 {}
@@ -171,7 +155,7 @@ func _Auction_Result_Handler(srv interface{}, ctx context.Context, dec func(inte
 }
 
 func _Auction_Replicate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReplicateRequest)
+	in := new(State)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -183,25 +167,7 @@ func _Auction_Replicate_Handler(srv interface{}, ctx context.Context, dec func(i
 		FullMethod: Auction_Replicate_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuctionServer).Replicate(ctx, req.(*ReplicateRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Auction_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PingRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuctionServer).Ping(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Auction_Ping_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuctionServer).Ping(ctx, req.(*PingRequest))
+		return srv.(AuctionServer).Replicate(ctx, req.(*State))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -224,10 +190,6 @@ var Auction_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Replicate",
 			Handler:    _Auction_Replicate_Handler,
-		},
-		{
-			MethodName: "Ping",
-			Handler:    _Auction_Ping_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

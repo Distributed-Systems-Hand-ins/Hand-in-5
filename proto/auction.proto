@@ -13,7 +13,7 @@ enum Outcome {
 
 message BidRequest {
   string bidder = 1;
-  int64 amount = 2;
+  int32 amount = 2;
   int64 request_id = 3;
   bool forwarded = 4;
 }
@@ -30,7 +30,7 @@ message ResultReply {
   int32 highest_bid = 2;
   string highest_bidder = 3; // empty if nobody has bid
   bool started = 4;
-  int64 = seconds_left = 5;
+  int64 seconds_left = 5;
 }
 
 // Node-to-node: the primary sends its whole state after each accepted bid.
@@ -39,7 +39,7 @@ message State {
   int32 highest_bid = 2;
   string highest_bidder = 3;
   map<string, BidderInfo> bidders = 4;   // bidder id -> that bidder's last bid
-  int64 deadline_unix_nano = 5;  // absolute end time of the auction
+  int64 end_unix_ms = 5;  // absolute end time of the auction
 }
 message Ack {}
 

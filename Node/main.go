@@ -10,12 +10,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
-)
 
-   pb "auction/proto" // generated from proto/auction.proto (see go_package)
-"google.golang.org/grpc"
-"google.golang.org/grpc/credentials/insecure"
-"google.golang.org/protobuf/proto"
+	pb "auction/proto" // generated from proto/auction.proto (see go_package)
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
+)
 
 var adresses = map[int]string{
 	1: "localhost:5001",
@@ -79,6 +80,7 @@ func main() {
 	pb.RegisterAuctionServer(server, n)
 	log.Printf("Node %d listening on %s", n.id, adresses[n.id])
 	log.Fatal(server.Serve(lis))
+	}
 
 	func (n * Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.BidResponse, error) {
 		for {
@@ -122,6 +124,7 @@ func main() {
 			if req.RequestId < info.LastRequestId {
 				return &pb.BidReply{Outcome: pb.Outcome_EXCEPTION, Message: "old request"}
 		}
+	}
 		n.mu.Lock()
 	    defer n.mu.Unlock()
 		n.replicate(newState)
@@ -235,3 +238,4 @@ func (n *Node) Replicate(ctx context.Context, s *pb.State) (*pb.ReplicateReply, 
 return &pb.ack{}, nil
 }
 }
+
