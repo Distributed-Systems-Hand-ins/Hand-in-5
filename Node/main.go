@@ -78,10 +78,36 @@ func main() {
 	log.Fatal(server.Serve(lis))
 
 	func (n * Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.BidResponse, error) {
-		return n.handleBid(req), nil
+		for {
+			leader := n.whoLeads(req.Forwarded)
+			if leader == n.id {
+				return n.handleBird(req), nil
+			}
+			fwd := proto.Clone(req).(*pb.BidRequest)
+			fwd.Forwarded = true
+			cctx, cancel := context.WithTimeout(ctx, forwardTimeout)
+			reply, err := n.peers[leader].Bid(cctx, fwd)
+			cancel() 
+			if err == nil {
+				return reply, nil
+			}
+			n.markDead(leader, err)
+		}
 	}
     func (n *Node) Result(ctx context.Context, req *pb.ResultRequest) (*pb.ResultResponse, error) {
-		return n.handleResult(req), nil
+		for {
+			leader := n.whoLeads(req.Forwarded)
+			if leader == n.id {
+				return n.handleResult(), nil
+			}
+			cctx, cancel := context.WithTimeout(ctx, forwardTimeout)
+			reply, err := n.peers[leader].Result(cctx, &pb.ResultRequest{Forwarded: true})
+			cancel()
+			if err == nil {
+				return reply, nil
+			}
+			n.markDead(leader, err)
+		}
 	}
 
 	func (n *Node) handleBid(req *pb.BidRequest) *pb.BidReply {
@@ -137,4 +163,35 @@ func (n *Node) handleResult() *pb.ResultReply {
 	}
 	return r
 }
+
+func (n *Node) whoLeads(forwarded bool) int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if forwarded {
+		for id := range addresses {
+			if id < n.id && !n.dead[id] {
+				n.dead[id] = true
+				log.Printf("Learned from a forwarded request that node %d is dead", id)
+			}
+		}
+	}
+	return n.leader()
 }
+func (n *Node) markDead(id int, err error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if !n.dead[id] {
+		log.Printf("Node %d did not answer (%v), marking it as dead", id, err)
+		n.dead[id] = true
+	}
+}
+
+func (n *Node) leader() int {
+	for id := 1; id <= len(addresses); id++ {
+		if id == n.id || !n.dead[id] {
+			return id 
+	}
+}
+return n.id
+}
+}	

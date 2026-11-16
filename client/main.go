@@ -96,4 +96,17 @@ func main() {
 			fmt.Println("Commands: bid <amount> | result | quit")
 		}
 	}
+    call := func(f func(c pb.AuctionClient, ctx context.Context) error) bool {
+		for attempt := 0; attempt < len(nodes); attempt++ {
+			ctx, cancel := context.WithTimeout(context.Background(), clientTimeout) 
+			err := do(nodes[current], ctx)
+			cancel()
+			if err == nil {
+				return true
+			}
+			fmt.Printf(" (node %d did not answer, trying the next node)\n", current+1)
+			current = (current + 1) % len(nodes)
+		}
+		return false
+	}
 }
