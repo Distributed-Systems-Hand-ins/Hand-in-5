@@ -39,7 +39,20 @@ func main() {
 	}
 	current := *start - 1 // index into nodes
 
-	// >>> YOUR TURN: paste the call helper here <<<
+	call := func(f func(c pb.AuctionClient, ctx context.Context) error) bool {
+		for attempt := 0; attempt < len(nodes); attempt++ {
+			ctx, cancel := context.WithTimeout(context.Background(), clientTimeout) 
+			err := f(nodes[current], ctx)
+			cancel()
+			if err == nil {
+				return true
+			}
+			fmt.Printf(" (node %d did not answer, trying the next node)\n", current+1)
+			current = (current + 1) % len(nodes)
+		}
+		return false
+	}
+	
 
 	requestID := time.Now().UnixNano() // unique and increasing, even if you restart the client
 	fmt.Println("Commands: bid <amount> | result | quit")
@@ -55,13 +68,13 @@ func main() {
 				fmt.Println("usage: bid <amount>")
 				continue
 			}
-			amount, err := strconv.ParseInt(fields[1], 10, 64)
+			amount, err := strconv.ParseInt(fields[1], 10, 32)
 			if err != nil {
 				fmt.Println("amount must be a number")
 				continue
 			}
 			requestID++
-			req := &pb.BidRequest{Bidder: *name, Amount: amount, RequestId: requestID}
+			req := &pb.BidRequest{Bidder: *name, Amount: int32(amount), RequestId: requestID}
 			ok := call(func(c pb.AuctionClient, ctx context.Context) error {
 				reply, err := c.Bid(ctx, req)
 				if err == nil {
@@ -96,17 +109,5 @@ func main() {
 			fmt.Println("Commands: bid <amount> | result | quit")
 		}
 	}
-    call := func(f func(c pb.AuctionClient, ctx context.Context) error) bool {
-		for attempt := 0; attempt < len(nodes); attempt++ {
-			ctx, cancel := context.WithTimeout(context.Background(), clientTimeout) 
-			err := do(nodes[current], ctx)
-			cancel()
-			if err == nil {
-				return true
-			}
-			fmt.Printf(" (node %d did not answer, trying the next node)\n", current+1)
-			current = (current + 1) % len(nodes)
-		}
-		return false
-	}
+    
 }
