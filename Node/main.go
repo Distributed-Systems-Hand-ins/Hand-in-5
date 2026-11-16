@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-pb "auction/proto" // generated from proto/auction.proto (see go_package)
+   pb "auction/proto" // generated from proto/auction.proto (see go_package)
 "google.golang.org/grpc"
 "google.golang.org/grpc/credentials/insecure"
 "google.golang.org/protobuf/proto"
@@ -97,130 +97,44 @@ func main() {
 	log.Printf("Bid %d from %s -> %v (seq %d)", req.Amount, req.Bidder, reply.Outcome, newState.Seq)
 	return reply
 
-	// Continously accept incoming connections
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Print("Error accepting connection: ", err)
+	func applyBid(state *pb.State, req *pb.BidRequest, now time.Time) *pb.BidReply {
+		var reply *pb.BidReply 
+		switch {
+		case s.EndUnixMs != 0 && now.UnixMilli() >= s.EndUnixMs:
+			reply = &pb.BidReply{Outcome: pb.Outcome_EXCEPTION, Message: "the auction is over"}
+		case req.Amount <= 0:
+			reply = &pb.BidReply{Outcome: pb.Outcome_EXCEPTION, Message: "amount must be positive"}
+		case req.Amount <= s.HighestBid:
+			reply = &pb.BidReply{Outcome: pb.Outcome_FAIL, Message: fmt.Sprintf("bid must be higher than %d", s.HighestBid)}
+		default:
+			if s.EndUnixMs == 0 {
+				s.EndUnixMs = now.Add(auctionDuration).UnixMilli()
+			}
+			s.HighestBid = req.Amount
+			s.HighestBidder = req.Bidder
+			reply = &pb.BidReply{Outcome: pb_Outcome_SUCCESS, Message: "you are the highest bidder"}
 		}
-
-		// Handle the connection in a new goroutine
-		go handleConnection(conn)
-	}
-
-}
-
-// Define a struct to represent a client
-type client struct {
-	addr string
-	conn net.Conn
-}
-
-// Define a struct to represent a bidder
-type bidder struct {
-	client *client
-	bid int
-}
-
-// Maintain a map of connected clients
-var clients = make(map[string]*client)
-
-// Maintain a map of bids from clients
-var bids = make(map[*client]int)
-
-// Define constants for auction timing
-const AuctionBaseWaitingTime = 5
-const BidWaitingTime = 5
-
-// Function to host the auction
-func hostAuction() {
-	for {
-		if len(clients) == 0 {
-			continue
-	}
-	<-time.After(time.Second * time.Duration(AuctionBaseWaitingTime+rand.Intn(1)))
-	fmt.Println("Broadcasting auctions: ")
-    
-	// Notify all clients that the auction is starting
-	for _, c := range clients {
-		fmt.Fprintf(c.conn, "Auction is starting! Place your bids now!\n", BidWaitingTime)
-		go getInput(c)
-	}
-    // Wait for the bid submission time to elapse
-    <- time.After(time.Second * BidWaitingTime)
-	winner, winningBid := determineWinner(bids)
-
-	// Notify the winner and all clients about the auction result
-	fmt.Fprintf(winner.conn, "You won! \nPaying Price: %d", winningBid)
-	for c := range bids {
-		// inform all clients about the winner and their bid
-		if c == winner {
-			continue
+		if s.Bidders == nil {
+			s.Bidders = map[string]*pb.BidderInfo{}
 		}
-		fmt.Fprintf(c.conn, "You lost! Winner: %s, Winning Bid: %d", winner.addr, winningBid)
-	}
-	// Clear the bids map for the next auction round
-	for k := range bids {
-		delete (bids, k)
-	}
-}
-}
-// Function to determine the winner of the auction
-func getInput(c *client) {
-	err := c.conn.SetReadDeadline(time.Now().Add(time.Second * BidWaitingTime))
-	if err != nil {
-		fmt.Println("Error setting read deadline: ", err)
-		return
-	}
-    // Read the bid input from the client
-	b, _ := bufio.NewReader(c.conn).ReadString('\n')
-	if err != nil {
-		fmt.Println("Error reading input: ", err)
-		return
-	}
-	// Skip empty bids
-	if b == "" {
-		return
-	}
-	// Convert the bid input to an integer
-	bid, err := strconv.Atoi(strings.TrimSpace(b))
-	if err != nil {
-		fmt.Println("Error converting bid to integer: ", err)
-		return
-	}
-	bids[c] = bid
+		s.Bidders[req.Bidder] = &pb.BidderInfo{LastRequestId: req.RequestId, LastReply: reply}
+		return reply
+
 }
 
-// handleConnection function manages incoming client connections
-func handleConnection(conn net.Conn) {
-	// Create a new client with connection details
-	c := client {
-		addr: conn.RemoteAddr().String(),
-		conn: conn,
+func (n *Node) handleResult() *pb.ResultReply {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	s := n.state
+	r := &pb.ResultReply{Started: s.EndUnixMs != 0, HighestBidder: s.HighestBidder, HighestBid: s.HighestBid}
+	if r.Started {
+		left := time.Until(time.UnixMilli(s.EndUnixMs))
+		if left <= 0 {
+			r.Over = true
+		} else {
+			r.SecondsLeft = int64(left.Seconds())
+		}
 	}
-	
-	// Store the new client in the clients map
-	clients	[c.addr] = &c
-	fmt.Println("New client connected: ", c.addr)
+	return r
 }
-// determineWinner function identifies the client with the highest bid
-func determineWinner(bids map[*client]int) (*client, int) {
-	if len(bids) == 0 {
-		return nil, 0
-	}
-	// Create a slice to hold bidders for sorting
-	bs := make([]bidder, 0, len(bids))
-	for c, bid := range bids {
-		bs = append(bs, bidder{client: c, bid: bid})
-	}
-    // Return the single bidder if there's only one
-	if len(bs) == 1 {
-		return bs[0].client, bs[0].bid
-	}
-    // Sort the bidders slice in descending order based on bid amounts
-	sort.Slice(bs, func(i, j int) bool {
-		return bs[i].bid > bs[j].bid
-	})
-    // Return the client with the highest bid and the winning bid amount
-    return bs[0].client, bs[1].bid
 }
