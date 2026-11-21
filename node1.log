@@ -1,2 +1,4 @@
-15:50:08.423376 Node 1 listening on localhost:5001
-15:50:42.508849 Bid 10 from alice -> SUCCESS (seq 1)
+12:51:32.542889 Node 1 listening on localhost:5001
+12:52:34.556202 Bid 10 from alice -> SUCCESS (seq 1)
+12:52:43.658846 Bid 20 from bob -> SUCCESS (seq 2)
+12:52:52.817622 Bid 15 from alice -> FAIL (seq 3)

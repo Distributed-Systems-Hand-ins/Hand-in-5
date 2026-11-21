@@ -1,3 +1,8 @@
-15:50:21.814447 Node 3 listening on localhost:5003
-15:50:42.508849 Backup: now at seq 1, highest alice:10
-15:51:12.367019 Backup: now at seq 2, highest alice:20
+12:51:48.040868 Node 3 listening on localhost:5003
+12:52:34.555917 Backup: now at seq 1, highest alice:10
+12:52:43.658718 Backup: now at seq 2, highest bob:20
+12:52:52.817475 Backup: now at seq 3, highest bob:20
+12:53:24.923041 Backup: now at seq 4, highest alice:30
+12:53:35.505345 Node 1 did not answer (rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:5001: connect: connection refused"), marking it as dead
+12:53:35.550730 Backup: now at seq 5, highest alice:30
+12:54:44.034789 Backup: now at seq 6, highest alice:30
