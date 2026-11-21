@@ -14,7 +14,9 @@ import (
 	pb "auction/proto" // generated from proto/auction.proto (see go_package)
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -38,6 +40,14 @@ type Node struct {
 	state            *pb.State
 	dead             map[int]bool
 	crashBeforeReply bool
+}
+
+func leaderCrashed(ctx context.Context, err error) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	c := status.Code(err)
+	return c == codes.Unavailable || c == codes.DeadlineExceeded
 }
 
 func main() {
@@ -96,6 +106,9 @@ func (n *Node) Bid(ctx context.Context, req *pb.BidRequest) (*pb.BidReply, error
 		if err == nil {
 			return reply, nil
 		}
+		if !leaderCrashed(ctx, err) {
+			return nil, err
+		}
 		n.markDead(leader, err)
 	}
 }
@@ -110,6 +123,9 @@ func (n *Node) Result(ctx context.Context, req *pb.ResultRequest) (*pb.ResultRep
 		cancel()
 		if err == nil {
 			return reply, nil
+		}
+		if !leaderCrashed(ctx, err) {
+			return nil, err
 		}
 		n.markDead(leader, err)
 	}

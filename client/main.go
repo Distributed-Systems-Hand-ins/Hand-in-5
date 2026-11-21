@@ -37,11 +37,16 @@ func main() {
 		}
 		nodes = append(nodes, pb.NewAuctionClient(conn))
 	}
+
+	if *start < 1 || *start > len(addresses) {
+		fmt.Printf("-node must be between 1 and %d\n", len(addresses))
+		return
+	}
 	current := *start - 1 // index into nodes
 
 	call := func(f func(c pb.AuctionClient, ctx context.Context) error) bool {
 		for attempt := 0; attempt < len(nodes); attempt++ {
-			ctx, cancel := context.WithTimeout(context.Background(), clientTimeout) 
+			ctx, cancel := context.WithTimeout(context.Background(), clientTimeout)
 			err := f(nodes[current], ctx)
 			cancel()
 			if err == nil {
@@ -52,7 +57,6 @@ func main() {
 		}
 		return false
 	}
-	
 
 	requestID := time.Now().UnixNano() // unique and increasing, even if you restart the client
 	fmt.Println("Commands: bid <amount> | result | quit")
@@ -109,5 +113,4 @@ func main() {
 			fmt.Println("Commands: bid <amount> | result | quit")
 		}
 	}
-    
 }
